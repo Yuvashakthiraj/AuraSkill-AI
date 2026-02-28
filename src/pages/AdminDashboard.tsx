@@ -117,16 +117,18 @@ const AdminDashboard = () => {
 
         // Admin sees all interviews from all users via Firebase
         const allInterviews = await getAllInterviews();
-        console.log(`✅ Loaded ${allInterviews.length} interviews from Firestore`);
+        const interviewsArray = Array.isArray(allInterviews) ? allInterviews : [];
+        console.log(`✅ Loaded ${interviewsArray.length} interviews from Firestore`);
 
-        setInterviews(allInterviews);
-        setFilteredInterviews(allInterviews);
+        setInterviews(interviewsArray);
+        setFilteredInterviews(interviewsArray);
 
         // Load Round 1 aptitude results
         const aptitudeResults = await getRound1AptitudeResults();
-        console.log(`✅ Loaded ${aptitudeResults.length} Round 1 aptitude results`);
-        setRound1Results(aptitudeResults);
-        setFilteredRound1Results(aptitudeResults);
+        const aptitudeArray = Array.isArray(aptitudeResults) ? aptitudeResults : [];
+        console.log(`✅ Loaded ${aptitudeArray.length} Round 1 aptitude results`);
+        setRound1Results(aptitudeArray);
+        setFilteredRound1Results(aptitudeArray);
 
         // Count total resumes saved
         try {

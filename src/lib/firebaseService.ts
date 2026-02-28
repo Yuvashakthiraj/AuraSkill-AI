@@ -230,12 +230,14 @@ export async function saveInterview(interview: any, userId: string) {
 
 export async function getInterview(interviewId: string) {
   // Get all interviews and find by ID
-  const interviews = await interviewsApi.getAll();
+  const response = await interviewsApi.getAll();
+  const interviews = response?.interviews || [];
   return interviews.find((i: any) => i.id === interviewId);
 }
 
 export async function getUserInterviews(userId: string) {
-  return await interviewsApi.getAll();
+  const response = await interviewsApi.getAll();
+  return response?.interviews || [];
 }
 
 export async function updateInterview(interviewId: string, updates: any) {
@@ -249,7 +251,8 @@ export async function deleteInterview(interviewId: string) {
 }
 
 export async function getAllInterviews() {
-  return await interviewsApi.getAll(true);
+  const response = await interviewsApi.getAll(true);
+  return response?.interviews || [];
 }
 
 // ==================== PRACTICE APTITUDE FUNCTIONS ====================
@@ -258,7 +261,8 @@ export async function savePracticeAptitudeResult(result: PracticeAptitudeResult)
 }
 
 export async function getPracticeAptitudeHistory(userId: string) {
-  return await practiceAptitudeApi.getHistory();
+  const response = await practiceAptitudeApi.getHistory();
+  return response?.results || [];
 }
 
 // ==================== PRACTICE INTERVIEW FUNCTIONS ====================
@@ -267,7 +271,8 @@ export async function savePracticeInterviewResult(result: PracticeInterviewResul
 }
 
 export async function getPracticeInterviewHistory(userId: string) {
-  return await practiceInterviewsApi.getHistory();
+  const response = await practiceInterviewsApi.getHistory();
+  return response?.results || [];
 }
 
 // ==================== BOT INTERVIEW FUNCTIONS ====================
@@ -276,7 +281,8 @@ export async function saveBotInterviewResult(result: BotInterviewResult) {
 }
 
 export async function getBotInterviewHistory(userId: string) {
-  return await botInterviewsApi.getHistory();
+  const response = await botInterviewsApi.getHistory();
+  return response?.results || [];
 }
 
 // ==================== PRACTICE CODING FUNCTIONS ====================
@@ -290,7 +296,8 @@ export async function saveRound1AptitudeResult(result: any) {
 }
 
 export async function getRound1AptitudeResults(userId?: string) {
-  return await round1Api.getResults(!!userId);
+  const response = await round1Api.getResults(!!userId);
+  return response?.results || [];
 }
 
 export async function updateRound1AptitudeResult(id: string, updates: any) {

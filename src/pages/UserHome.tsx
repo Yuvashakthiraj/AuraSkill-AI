@@ -50,7 +50,8 @@ const UserHome = () => {
       // 1. Formal interviews (Round 2 / practice interviews saved via InterviewContext)
       try {
         const interviews = await getUserInterviews(user.id);
-        interviews.filter(i => i.completed).forEach(i => {
+        const interviewsArray = Array.isArray(interviews) ? interviews : [];
+        interviewsArray.filter(i => i.completed).forEach(i => {
           activities.push({
             id: i.id,
             type: 'interview',
@@ -66,7 +67,8 @@ const UserHome = () => {
       // 2. Round 1 Aptitude results (from mock interview flow)
       try {
         const round1 = await getRound1AptitudeResults(user.id);
-        round1.forEach(r => {
+        const round1Array = Array.isArray(round1) ? round1 : [];
+        round1Array.forEach(r => {
           activities.push({
             id: r.id,
             type: 'round1',
@@ -83,7 +85,8 @@ const UserHome = () => {
       // 3. Practice aptitude
       try {
         const practiceApt = await getPracticeAptitudeHistory(user.id);
-        practiceApt.forEach(r => {
+        const practiceAptArray = Array.isArray(practiceApt) ? practiceApt : [];
+        practiceAptArray.forEach(r => {
           activities.push({
             id: r.id,
             type: 'practice-aptitude',
@@ -99,7 +102,8 @@ const UserHome = () => {
       // 4. Practice interviews (from Practice Hub)
       try {
         const practiceInt = await getPracticeInterviewHistory(user.id);
-        practiceInt.forEach(r => {
+        const practiceIntArray = Array.isArray(practiceInt) ? practiceInt : [];
+        practiceIntArray.forEach(r => {
           activities.push({
             id: r.id,
             type: 'practice-interview',
@@ -115,7 +119,8 @@ const UserHome = () => {
       // 5. Bot interviews (FRIEDE AI Interview)
       try {
         const botInt = await getBotInterviewHistory(user.id);
-        botInt.forEach(r => {
+        const botIntArray = Array.isArray(botInt) ? botInt : [];
+        botIntArray.forEach(r => {
           activities.push({
             id: r.id,
             type: 'bot-interview',
