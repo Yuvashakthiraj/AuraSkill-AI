@@ -513,6 +513,28 @@ export function auraSkillApiPlugin(): Plugin {
         },
 
         configureServer(server: ViteDevServer) {
+            // Global error handlers to prevent server crashes
+            process.on('uncaughtException', (err) => {
+                console.error('❌ Uncaught Exception:', err.message);
+            });
+            process.on('unhandledRejection', (reason: any) => {
+                console.error('❌ Unhandled Rejection:', reason?.message || reason);
+            });
+
+            // Helper to wrap async handlers with error handling
+            const safeHandler = (handler: (req: any, res: any, next: any) => Promise<any>) => {
+                return async (req: any, res: any, next: any) => {
+                    try {
+                        await handler(req, res, next);
+                    } catch (err: any) {
+                        console.error(`❌ API Error [${req.url}]:`, err.message);
+                        if (!res.headersSent) {
+                            sendJson(res, 500, { error: err.message || 'Internal server error' });
+                        }
+                    }
+                };
+            };
+
             // CORS preflight
             server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
                 if (req.url?.startsWith('/api/') && req.method === 'OPTIONS') {
@@ -691,7 +713,7 @@ export function auraSkillApiPlugin(): Plugin {
             });
 
             // ==================== DB CRUD: INTERVIEWS ====================
-            server.middlewares.use('/api/interviews', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/interviews', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 const path = getUrlPath(req);
 
@@ -748,10 +770,10 @@ export function auraSkillApiPlugin(): Plugin {
                 }
 
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: PRACTICE APTITUDE ====================
-            server.middlewares.use('/api/practice-aptitude', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/practice-aptitude', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -782,10 +804,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: PRACTICE INTERVIEWS ====================
-            server.middlewares.use('/api/practice-interviews', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/practice-interviews', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -818,10 +840,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: BOT INTERVIEWS ====================
-            server.middlewares.use('/api/bot-interviews', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/bot-interviews', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -850,10 +872,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: PRACTICE CODING ====================
-            server.middlewares.use('/api/practice-coding', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/practice-coding', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -881,10 +903,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: RESUMES ====================
-            server.middlewares.use('/api/resumes', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/resumes', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -914,10 +936,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== DB CRUD: ROUND 1 APTITUDE ====================
-            server.middlewares.use('/api/round1-aptitude', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/round1-aptitude', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -977,10 +999,10 @@ export function auraSkillApiPlugin(): Plugin {
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== CAREER PLAN ====================
-            server.middlewares.use('/api/career-plan', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/career-plan', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -1071,10 +1093,10 @@ Return ONLY valid JSON.`;
                     return sendJson(res, 200, { plans });
                 }
                 next();
-            });
+            }));
 
             // ==================== ROADMAP CHART (Groq + Mermaid) ====================
-            server.middlewares.use('/api/roadmap-chart', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/roadmap-chart', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -1151,10 +1173,10 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 } catch (err: any) {
                     sendJson(res, 500, { error: err.message });
                 }
-            });
+            }));
 
             // ==================== RESUME BUILDER ====================
-            server.middlewares.use('/api/resume-builder', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/resume-builder', safeHandler(async (req: any, res: any, next: any) => {
                 const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
@@ -1185,19 +1207,19 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                     return sendJson(res, 200, { builds });
                 }
                 next();
-            });
+            }));
 
             // ==================== ADMIN: ALL USERS ====================
-            server.middlewares.use('/api/admin/users', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/admin/users', safeHandler(async (req: any, res: any, next: any) => {
                 if (req.method !== 'GET') return next();
                 const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
                 const users = await userService.getAll();
                 sendJson(res, 200, { users });
-            });
+            }));
 
             // ==================== ADMIN: STATS ====================
-            server.middlewares.use('/api/admin/stats', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/admin/stats', safeHandler(async (req: any, res: any, next: any) => {
                 if (req.method !== 'GET') return next();
                 const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
@@ -1206,10 +1228,10 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 const completedInterviews = await interviewService.countCompleted();
                 const avgScore = await interviewService.getAverageScore();
                 sendJson(res, 200, { totalUsers, totalInterviews, completedInterviews, averageScore: Math.round(avgScore * 10) / 10 });
-            });
+            }));
 
             // ==================== ROLES ====================
-            server.middlewares.use('/api/roles', async (req: any, res: any, next: any) => {
+            server.middlewares.use('/api/roles', safeHandler(async (req: any, res: any, next: any) => {
                 if (req.method === 'GET') {
                     const roles = await roleService.getAll();
                     return sendJson(res, 200, { roles });
@@ -1228,7 +1250,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                     return;
                 }
                 next();
-            });
+            }));
 
             // ==================== SKILL TREND ANALYSIS (Groq-powered) ====================
             // In-memory cache for skill trends (refresh every 2 hours to save API calls)
