@@ -112,23 +112,25 @@ const AdminDashboard = () => {
   // Bot interviews state
   const [botInterviews, setBotInterviews] = useState<any[]>([]);
   const [adminStats, setAdminStats] = useState<any>(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    // Skip if already loaded (prevents reload on navigation)
-    if (dataLoaded) return;
+    // Wait for admin status to be determined
+    if (isAdmin === undefined) return;
+    if (!isAdmin) return;
 
     const loadInterviews = async () => {
+      setDataLoading(true);
       try {
         console.log('🔄 AdminDashboard: Loading interviews...');
         console.log('User is admin:', isAdmin);
 
         // Load all data in parallel
         const [allInterviews, allBotInterviews, aptitudeResults, stats] = await Promise.all([
-          getAllInterviews(),
-          getAllBotInterviews(),
-          getRound1AptitudeResults(),
-          adminApi.getStats().catch(() => null)
+          getAllInterviews().catch(e => { console.error('getAllInterviews error:', e); return []; }),
+          getAllBotInterviews().catch(e => { console.error('getAllBotInterviews error:', e); return []; }),
+          getRound1AptitudeResults().catch(e => { console.error('getRound1AptitudeResults error:', e); return []; }),
+          adminApi.getStats().catch(e => { console.error('getStats error:', e); return null; })
         ]);
 
         const interviewsArray = Array.isArray(allInterviews) ? allInterviews : [];
@@ -140,6 +142,7 @@ const AdminDashboard = () => {
         setBotInterviews(botInterviewsArray);
         
         if (stats) {
+          console.log('✅ Admin stats:', stats);
           setAdminStats(stats);
         }
 
@@ -155,8 +158,6 @@ const AdminDashboard = () => {
         } catch (err) {
           console.error('Error counting resumes:', err);
         }
-        
-        setDataLoaded(true);
       } catch (error: any) {
         console.error('❌ Error loading interviews:', error);
         console.error('Error details:', {
@@ -165,12 +166,13 @@ const AdminDashboard = () => {
           stack: error?.stack
         });
         toast.error('Failed to load interviews');
+      } finally {
+        setDataLoading(false);
       }
     };
 
     loadInterviews();
-    // Remove the 10-second auto-refresh - data stays loaded on navigation
-  }, [isAdmin, dataLoaded]);
+  }, [isAdmin]);
 
   useEffect(() => {
     let results = interviews;

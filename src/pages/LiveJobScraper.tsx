@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   scrapeJobs,
   type ScrapedJob,
@@ -389,17 +390,31 @@ const LiveJobScraper = () => {
 
 // Job Card Component
 const JobCard = ({ job, index }: { job: ScrapedJob; index: number }) => {
+  // Handle card click
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (job.url) {
+      e.preventDefault();
+      window.open(job.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
     >
-      <Card className="border-border/50 hover:border-violet-500/30 transition-colors h-full">
+      <Card 
+        className={cn(
+          "border-border/50 h-full transition-all duration-300",
+          job.url ? "cursor-pointer hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/10 hover:scale-[1.02] hover:-translate-y-1" : ""
+        )}
+        onClick={handleCardClick}
+      >
         <CardContent className="pt-5 pb-4 flex flex-col h-full">
           <div className="flex-1">
             {/* Title & Company */}
-            <h3 className="font-semibold text-sm line-clamp-2 mb-1.5">{job.title}</h3>
+            <h3 className="font-semibold text-sm line-clamp-2 mb-1.5 group-hover:text-violet-400 transition-colors">{job.title}</h3>
             <div className="flex items-center gap-1.5 text-muted-foreground text-xs mb-2">
               <Building2 className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{job.company}</span>
@@ -438,14 +453,10 @@ const JobCard = ({ job, index }: { job: ScrapedJob; index: number }) => {
               {job.source}
             </Badge>
             {job.url && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-                onClick={() => window.open(job.url, '_blank')}
-              >
-                View
-              </Button>
+              <div className="flex items-center gap-1 text-xs text-violet-400">
+                <span className="font-medium">View Job</span>
+                <ArrowUpRight className="h-3 w-3" />
+              </div>
             )}
           </div>
         </CardContent>

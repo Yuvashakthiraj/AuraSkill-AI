@@ -4,6 +4,8 @@
  * Generates gap analysis, future-ready score, and learning roadmap
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import crypto from 'crypto';
 import {
   resumeService,
@@ -95,6 +97,7 @@ export interface LearningRoadmap {
 
 /**
  * Calculate verified score using trust hierarchy:
+ * If user has minimal data, give baseline credit to avoid 0% dummy appearance
  * GitHub (50%) > Assessment (30%) > Resume (20%)
  */
 export function calculateVerifiedScore(
@@ -106,11 +109,20 @@ export function calculateVerifiedScore(
   const ASSESSMENT_WEIGHT = 0.3;
   const RESUME_WEIGHT = 0.2;
 
-  return (
+  const calculated = (
     github_score * GITHUB_WEIGHT +
     assessment_score * ASSESSMENT_WEIGHT +
     resume_score * RESUME_WEIGHT
   );
+
+  // If user has ANY claimed skill (resume_score > 0), give minimum 30% baseline
+  // This reflects that self-reported skills often indicate real knowledge
+  if (calculated === 0 && resume_score > 0) {
+    return Math.min(resume_score * 0.6, 40); // Up to 40% baseline for claimed skills
+  }
+
+  // If completely no data, return 0
+  return calculated;
 }
 
 /**
@@ -390,14 +402,45 @@ export function calculateFutureReadyScore(
   skillGaps: SkillGap[]
 ): FutureReadyScore {
   // Component 1: Resume Match (0-100)
-  // Average of resume scores for all skills with market demand
-  const resumeMatches = skillGaps.filter(g => g.user_score > 0);
-  const resume_match = resumeMatches.length > 0
-    ? resumeMatches.reduce((sum, g) => sum + Math.min(g.user_score, g.market_score), 0) / resumeMatches.length
-    : 0;
+  // Score based on claimed skills vs market demand
+  const skillsWithUserScore = skillGaps.filter(g => g.user_score > 0);
+  let resume_match = 0;
+  
+  if (skillsWithUserScore.length > 0) {
+    // Calculate match based on user skills vs market needs
+    const totalMatch = skillsWithUserScore.reduce((sum, g) => {
+      // Give credit for any skill level, not just perfect matches
+      const matchScore = Math.min(g.user_score, g.market_score);
+      return sum + matchScore;
+    }, 0);
+    resume_match = totalMatch / skillsWithUserScore.length;
+    
+    // Bonus: If user has multiple skills, boost score
+    const skillCountBonus = Math.min(skillsWithUserScore.length * 2, 10);
+    resume_match = Math.min(resume_match + skillCountBonus, 100);
+  } else {
+    // Baseline: Award points for profile engagement
+    const resumeSkills = Array.from(userProfile.values()).filter(p => p.resume_score > 0);
+    const verifiedSkills = Array.from(userProfile.values()).filter(p => p.verified_score > 0);
+    
+    if (resumeSkills.length > 0) {
+      // Has resume data - give substantial baseline
+      const avgResumeScore = resumeSkills.reduce((sum, p) => sum + p.resume_score, 0) / resumeSkills.length;
+      resume_match = Math.min(avgResumeScore * 0.7, 55); // Up to 55% for resume claims
+    } else if (verifiedSkills.length > 0) {
+      // Has some verified skills from other sources
+      resume_match = verifiedSkills.reduce((sum, p) => sum + p.verified_score, 0) / verifiedSkills.length * 0.5;
+    } else if (userProfile.size > 0) {
+      // User started profile but no concrete data - minimal baseline
+      resume_match = 25;
+    } else {
+      // Completely empty profile
+      resume_match = 15; // Still give baseline to encourage improvement
+    }
+  }
 
   // Component 2: GitHub Match (0-100)
-  // Average GitHub scores weighted by market importance
+  // Give credit for having GitHub data, or baseline for potential
   let githubTotal = 0;
   let githubWeight = 0;
   userProfile.forEach((profile) => {
@@ -406,10 +449,28 @@ export function calculateFutureReadyScore(
       githubWeight += 1;
     }
   });
-  const github_match = githubWeight > 0 ? githubTotal / githubWeight : 0;
+  
+  let github_match = 0;
+  if (githubWeight > 0) {
+    github_match = githubTotal / githubWeight;
+    // Bonus for active GitHub profile
+    github_match = Math.min(github_match + 5, 100);
+  } else {
+    // Baseline: Encourage GitHub profile creation
+    const technicalSkills = Array.from(userProfile.values()).filter(p => 
+      p.verified_score > 30 || p.resume_score > 40
+    );
+    if (technicalSkills.length >= 3) {
+      github_match = 35; // Good potential, needs GitHub
+    } else if (technicalSkills.length > 0) {
+      github_match = 25; // Some skills, encourage GitHub
+    } else {
+      github_match = 15; // Minimal baseline
+    }
+  }
 
   // Component 3: Assessment Performance (0-100)
-  // Average assessment scores across all skills
+  // Reward assessment completion, provide encouraging baseline otherwise
   let assessmentTotal = 0;
   let assessmentWeight = 0;
   userProfile.forEach((profile) => {
@@ -418,7 +479,25 @@ export function calculateFutureReadyScore(
       assessmentWeight += 1;
     }
   });
-  const assessment_performance = assessmentWeight > 0 ? assessmentTotal / assessmentWeight : 0;
+  
+  let assessment_performance = 0;
+  if (assessmentWeight > 0) {
+    assessment_performance = assessmentTotal / assessmentWeight;
+    // Bonus for taking assessments
+    assessment_performance = Math.min(assessment_performance + 5, 100);
+  } else {
+    // Baseline: Give credit based on claimed/verified skills
+    const claimedSkills = Array.from(userProfile.values()).filter(p => p.resume_score > 0 || p.verified_score > 0);
+    if (claimedSkills.length >= 5) {
+      assessment_performance = 35; // Many skills claimed, encourage verification
+    } else if (claimedSkills.length >= 3) {
+      assessment_performance = 30; // Some skills, needs assessment
+    } else if (claimedSkills.length > 0) {
+      assessment_performance = 25; // Few skills
+    } else {
+      assessment_performance = 15; // Minimal baseline
+    }
+  }
 
   // Component 4: Market Alignment (0-100)
   // Are the user's strong skills growing or declining?

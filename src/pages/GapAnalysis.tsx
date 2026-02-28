@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { auth } from '@/lib/firebase';
 import mermaid from 'mermaid';
 
 // ============================================================================
@@ -177,7 +178,8 @@ const GapAnalysis = () => {
     }
 
     try {
-      const token = localStorage.getItem('vidyamitra_token');
+      // Get fresh Firebase ID token
+      const token = await auth.currentUser?.getIdToken(true);
       if (!token) {
         console.log('No auth token found');
         return;
@@ -234,7 +236,7 @@ const GapAnalysis = () => {
 
   const runAnalysis = async () => {
     if (!targetRole.trim()) {
-      toast.error('Please enter a target role');
+      toast.error('Please select a target role');
       return;
     }
 
@@ -244,7 +246,8 @@ const GapAnalysis = () => {
       return;
     }
 
-    const token = localStorage.getItem('vidyamitra_token');
+    // Get fresh Firebase ID token
+    const token = await auth.currentUser?.getIdToken(true);
     if (!token) {
       toast.error('Authentication required. Please log in.');
       navigate('/login');
@@ -701,11 +704,27 @@ const GapAnalysis = () => {
                   <CardDescription>How we calculated your readiness</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Improvement Tips */}
+                  {(analysis.future_ready_score.resume_match < 50 || 
+                    analysis.future_ready_score.github_match < 40 || 
+                    analysis.future_ready_score.assessment_performance < 50) && (
+                    <Alert className="bg-blue-500/5 border-blue-500/20">
+                      <Info className="h-4 w-4 text-blue-400" />
+                      <AlertDescription className="text-xs ml-2">
+                        <span className="font-medium text-blue-400">Boost your score:</span> Upload your resume, connect GitHub, and complete skill assessments to get a comprehensive evaluation.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm flex items-center gap-2">
                         <Award className="h-4 w-4 text-blue-400" />
                         Resume Match
+                        {analysis.future_ready_score.resume_match < 50 && (
+                          <Badge variant="outline" className="text-[10px] ml-2 bg-orange-500/10 text-orange-400 border-orange-500/30">
+                            Improve Resume
+                          </Badge>
+                        )}
                       </span>
                       <span className="text-sm font-bold">{analysis.future_ready_score.resume_match}%</span>
                     </div>
@@ -716,7 +735,12 @@ const GapAnalysis = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm flex items-center gap-2">
                         <Github className="h-4 w-4 text-purple-400" />
-                        GitHub Proof
+                        GitHub Activity
+                        {analysis.future_ready_score.github_match < 40 && (
+                          <Badge variant="outline" className="text-[10px] ml-2 bg-purple-500/10 text-purple-400 border-purple-500/30">
+                            Connect GitHub
+                          </Badge>
+                        )}
                       </span>
                       <span className="text-sm font-bold">{analysis.future_ready_score.github_match}%</span>
                     </div>
@@ -727,7 +751,12 @@ const GapAnalysis = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm flex items-center gap-2">
                         <Code className="h-4 w-4 text-teal-400" />
-                        Assessment Performance
+                        Skills Verified
+                        {analysis.future_ready_score.assessment_performance < 50 && (
+                          <Badge variant="outline" className="text-[10px] ml-2 bg-teal-500/10 text-teal-400 border-teal-500/30">
+                            Take Assessment
+                          </Badge>
+                        )}
                       </span>
                       <span className="text-sm font-bold">{analysis.future_ready_score.assessment_performance}%</span>
                     </div>
@@ -739,6 +768,11 @@ const GapAnalysis = () => {
                       <span className="text-sm flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-green-400" />
                         Market Alignment
+                        {analysis.future_ready_score.market_alignment >= 60 && (
+                          <Badge variant="outline" className="text-[10px] ml-2 bg-green-500/10 text-green-400 border-green-500/30">
+                            Good Fit
+                          </Badge>
+                        )}
                       </span>
                       <span className="text-sm font-bold">{analysis.future_ready_score.market_alignment}%</span>
                     </div>

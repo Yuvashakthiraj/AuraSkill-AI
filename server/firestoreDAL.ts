@@ -3,6 +3,8 @@
  * Replaces all SQLite operations with Firestore
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { getFirebaseAdmin } from './firebaseAdmin';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
@@ -48,6 +50,31 @@ export function normalizeFields(data: any): any {
 }
 
 /**
+ * Serialize Firestore data - convert Timestamps to ISO strings
+ */
+export function serializeFirestoreData(data: any): any {
+  if (!data) return data;
+  if (Array.isArray(data)) return data.map(serializeFirestoreData);
+  if (typeof data === 'object') {
+    // Check if it's a Firestore Timestamp
+    if (data._seconds !== undefined || (data.toDate && typeof data.toDate === 'function')) {
+      try {
+        return data.toDate ? data.toDate().toISOString() : new Date(data._seconds * 1000).toISOString();
+      } catch {
+        return data;
+      }
+    }
+    // Recursively serialize all fields
+    const serialized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      serialized[key] = serializeFirestoreData(value);
+    }
+    return serialized;
+  }
+  return data;
+}
+
+/**
  * Password hashing (compatible with SQLite version)
  */
 export function hashPassword(password: string): string {
@@ -72,17 +99,17 @@ export const userService = {
       .where('email', '==', email)
       .limit(1)
       .get();
-    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    return snapshot.empty ? null : serializeFirestoreData({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
   },
 
   async getById(id: string) {
     const doc = await getFirestore().collection('users').doc(id).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    return doc.exists ? serializeFirestoreData({ id: doc.id, ...doc.data() }) : null;
   },
 
   async getAll() {
     const snapshot = await getFirestore().collection('users').orderBy('created_at', 'desc').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async count() {
@@ -97,7 +124,7 @@ export const userService = {
 export const interviewService = {
   async getAll() {
     const snapshot = await getFirestore().collection('interviews').orderBy('created_at', 'desc').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async getByUser(userId: string) {
@@ -106,7 +133,7 @@ export const interviewService = {
       .where('user_id', '==', userId)
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -162,7 +189,7 @@ export const practiceAptitudeService = {
       .orderBy('created_at', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -196,7 +223,7 @@ export const practiceInterviewService = {
       .orderBy('created_at', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -219,7 +246,7 @@ export const botInterviewService = {
       .collection('botInterviews')
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async getByUser(userId: string, limit = 50) {
@@ -229,7 +256,7 @@ export const botInterviewService = {
       .orderBy('created_at', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async count() {
@@ -259,7 +286,7 @@ export const practiceCodingService = {
       .orderBy('updated_at', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async createOrUpdate(data: any) {
@@ -292,7 +319,7 @@ export const resumeService = {
       .where('user_id', '==', userId)
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -324,7 +351,7 @@ export const round1AptitudeService = {
       .collection('round1Aptitude')
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async getByUser(userId: string) {
@@ -333,7 +360,7 @@ export const round1AptitudeService = {
       .where('user_id', '==', userId)
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -366,7 +393,7 @@ export const careerPlanService = {
       .where('user_id', '==', userId)
       .orderBy('created_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async create(data: any) {
@@ -390,7 +417,7 @@ export const resumeBuildService = {
       .where('user_id', '==', userId)
       .orderBy('updated_at', 'desc')
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async createOrUpdate(data: any) {
@@ -410,7 +437,7 @@ export const resumeBuildService = {
 export const roleService = {
   async getAll() {
     const snapshot = await getFirestore().collection('roles').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => serializeFirestoreData({ id: doc.id, ...doc.data() }));
   },
 
   async createOrUpdate(data: any) {
@@ -435,12 +462,12 @@ export const gapAnalysisService = {
       .orderBy('created_at', 'desc')
       .limit(1)
       .get();
-    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    return snapshot.empty ? null : serializeFirestoreData({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
   },
 
   async getById(id: string) {
     const doc = await getFirestore().collection('gapAnalyses').doc(id).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    return doc.exists ? serializeFirestoreData({ id: doc.id, ...doc.data() }) : null;
   },
 
   async createOrUpdate(data: any) {
@@ -465,7 +492,7 @@ export const learningRoadmapService = {
       .orderBy('created_at', 'desc')
       .limit(1)
       .get();
-    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    return snapshot.empty ? null : serializeFirestoreData({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
   },
 
   async getByGapAnalysis(gapAnalysisId: string) {
@@ -475,7 +502,7 @@ export const learningRoadmapService = {
       .orderBy('created_at', 'desc')
       .limit(1)
       .get();
-    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    return snapshot.empty ? null : serializeFirestoreData({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
   },
 
   async createOrUpdate(data: any) {
@@ -497,7 +524,7 @@ export const narrativeCacheService = {
     // _type parameter is optional, used for logging/organization but the cacheKey already includes type
     const doc = await getFirestore().collection('aiNarrativeCache').doc(cacheKey).get();
     if (!doc.exists) return null;
-    const data = doc.data();
+    const data = serializeFirestoreData(doc.data());
     return { id: doc.id, ...data, output_data: data?.narrative || data?.output_data };
   },
 
@@ -519,7 +546,7 @@ export const narrativeCacheService = {
 export const userSkillProfileService = {
   async getByUser(userId: string) {
     const doc = await getFirestore().collection('userSkillProfiles').doc(userId).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    return doc.exists ? serializeFirestoreData({ id: doc.id, ...doc.data() }) : null;
   },
 
   async createOrUpdate(userId: string, data: any) {

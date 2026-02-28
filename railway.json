@@ -1,0 +1,15 @@
+# Railway.app Deployment Configuration
+# Deploy your backend API to Railway's free tier
+
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm install && npm run build:server"
+  },
+  "deploy": {
+    "startCommand": "npm run start:server",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

@@ -1,4 +1,4 @@
-# Logs
+# ==================== LOGS ====================
 logs
 *.log
 npm-debug.log*
@@ -7,21 +7,44 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Firebase credentials (NEVER COMMIT THESE)
-firebase-admin-key.json
-*-firebase-adminsdk-*.json
-
+# ==================== DEPENDENCIES ====================
 node_modules
+.pnp
+.pnp.js
+
+# ==================== BUILD OUTPUT ====================
 dist
 dist-ssr
+dist-server
+build
 *.local
 
-# Environment variables
+# ==================== FIREBASE ====================
+# Firebase credentials (NEVER COMMIT THESE!)
+firebase-admin-key.json
+*-firebase-adminsdk-*.json
+.firebase-service-account.json
+firebase-service-account.json
+*firebase-adminsdk*.json
+.firebase/
+
+# Firebase local emulator data
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+firestore-debug.log
+pubsub-debug.log
+
+# ==================== ENVIRONMENT VARIABLES ====================
+# These contain API keys and secrets
 .env
 .env.local
+.env.development
 .env.production
+.env.*.local
 
-# Database files (too large for GitHub)
+# ==================== DATABASE FILES ====================
+# These are too large for GitHub
 *.db
 *.db-shm
 *.db-wal
@@ -29,19 +52,38 @@ dist-ssr
 *.sqlite3
 forecast.db
 vidyamitra.db
+*.db.backup*
 
-# Firebase Service Account (NEVER COMMIT THIS!)
-.firebase-service-account.json
-firebase-service-account.json
-*firebase-adminsdk*.json
+# ==================== BACKUP FILES ====================
+*.backup
+*.bak
+*.orig
+*.tmp
 
-# Editor directories and files
+# ==================== EDITOR/IDE ====================
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# ==================== OS FILES ====================
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ==================== TESTING ====================
+coverage
+.nyc_output
+
+# ==================== MISC ====================
+*.pem
+*.key
+*.cert
+.cache
+.parcel-cache

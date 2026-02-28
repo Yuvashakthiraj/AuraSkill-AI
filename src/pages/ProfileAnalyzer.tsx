@@ -18,7 +18,8 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip
 } from 'recharts';
-import { analyzeProfile, getProfileGoals, type ProfileAnalysisInput, type ProfileAnalysisResult } from '@/utils/auraSkillService';
+import { analyzeProfile, type ProfileAnalysisInput, type ProfileAnalysisResult } from '@/utils/auraSkillService';
+import { jobRoles } from '@/utils/interviewUtils';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set up PDF.js worker
@@ -38,7 +39,7 @@ const ProfileAnalyzer: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [careerGoal, setCareerGoal] = useState('');
-  const [availableGoals, setAvailableGoals] = useState<string[]>([]);
+  const [availableGoals] = useState<string[]>(jobRoles.map(role => role.title));
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,13 +48,6 @@ const ProfileAnalyzer: React.FC = () => {
   const [result, setResult] = useState<ProfileAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load available career goals
-  useEffect(() => {
-    getProfileGoals()
-      .then((res) => setAvailableGoals(res.goals))
-      .catch(() => console.log('Could not load career goals'));
-  }, []);
 
   // Extract text from PDF
   const extractTextFromPDF = async (file: File): Promise<string> => {

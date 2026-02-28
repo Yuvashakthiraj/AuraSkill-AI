@@ -8,7 +8,7 @@
  *
  * Results are cached in localStorage for 30 minutes to avoid unnecessary API calls.
  */
-
+import { auth } from '@/lib/firebase';
 // ─── Types ────────────────────────────────────────────────────────
 
 export interface TrendSkill {
@@ -93,7 +93,8 @@ export async function fetchSkillTrends(): Promise<SkillTrendAnalysis> {
     const cached = getCachedAnalysis();
     if (cached) return cached;
 
-    const token = localStorage.getItem('vidyamitra_token');
+    // Get fresh Firebase ID token if user is logged in
+    const token = await auth.currentUser?.getIdToken(true);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

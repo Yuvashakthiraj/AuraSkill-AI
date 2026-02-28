@@ -3,6 +3,8 @@
  * Provides clean interfaces for Firebase operations
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,

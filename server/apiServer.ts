@@ -7,6 +7,7 @@
 import type { Plugin, ViteDevServer } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { loadEnv } from 'vite';
+import Groq from 'groq-sdk';
 import { initializeFirebaseAdmin } from './firebaseAdmin';
 import { runGapAnalysis, type SkillGap, generateCacheKey } from './matchingEngine';
 import { generateLearningRoadmap } from './roadmapGenerator';
@@ -47,6 +48,8 @@ interface ApiKeys {
     JUDGE0_API_HOST: string;
     JUDGE0_BASE_URL: string;
     GROQ_API_KEY: string;
+    GROQ_API_KEY_2: string;
+    GROQ_API_KEY_3: string;
     GROQ_SKILL_TRENDS_KEY: string;
     ELEVENLABS_API_KEY: string;
 }
@@ -348,6 +351,46 @@ async function callGroq(apiKey: string, prompt: string): Promise<{ success: bool
     }
 }
 
+// ==================== GROQ API (Narrative Generation) ====================
+async function callGroqNarrative(apiKey: string, prompt: string, options: { temperature?: number; maxTokens?: number } = {}): Promise<{ success: boolean; text?: string; error?: string }> {
+    try {
+        const rate = checkAndRecordRate('groq', 5, 60);
+        if (!rate.ok) return { success: false, error: rate.error };
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: 'You are an expert career coach providing personalized, data-driven career guidance. Always respond with valid JSON.' },
+                    { role: 'user', content: prompt },
+                ],
+                temperature: options.temperature ?? 0.7,
+                max_tokens: options.maxTokens ?? 2048,
+                response_format: { type: 'json_object' }
+            }),
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error('Groq API error:', response.status, errText);
+            if (response.status === 429) return { success: false, error: 'Groq rate limit exceeded. Please wait.' };
+            return { success: false, error: `Groq API error: ${response.status}` };
+        }
+
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (!text) return { success: false, error: 'Empty response from Groq' };
+        return { success: true, text };
+    } catch (err: any) {
+        return { success: false, error: err.message || 'Groq narrative call failed' };
+    }
+}
+
 async function fetchYouTubeVideos(apiKey: string, query: string, maxResults = 3): Promise<any[]> {
     try {
         const rate = checkAndRecordRate('youtube', 5, 90);
@@ -488,6 +531,8 @@ export function auraSkillApiPlugin(): Plugin {
                 JUDGE0_API_HOST: env.JUDGE0_API_HOST || '',
                 JUDGE0_BASE_URL: env.JUDGE0_HOST || '',  // primary config var
                 GROQ_API_KEY: env.GROQ_API_KEY || '',
+                GROQ_API_KEY_2: env.GROQ_API_KEY_2 || '',
+                GROQ_API_KEY_3: env.GROQ_API_KEY_3 || '',
                 GROQ_SKILL_TRENDS_KEY: env.GROQ_SKILL_TRENDS_KEY || env.GROQ_API_KEY || '',
                 ELEVENLABS_API_KEY: env.ELEVENLABS_API_KEY || '',
             };
@@ -507,7 +552,8 @@ export function auraSkillApiPlugin(): Plugin {
             console.log('  Pexels:', keys.PEXELS_API_KEY ? '✅' : '❌');
             console.log('  News:', keys.NEWS_API_KEY ? '✅' : '❌');
             console.log('  Exchange:', keys.EXCHANGE_RATE_API_KEY ? '✅' : '❌');
-            console.log('  Groq:', keys.GROQ_API_KEY ? '✅' : '❌');
+            const groqKeysCount = [keys.GROQ_API_KEY, keys.GROQ_API_KEY_2, keys.GROQ_API_KEY_3].filter(k => k).length;
+            console.log('  Groq:', groqKeysCount > 0 ? `✅ (${groqKeysCount} keys)` : '❌');
             console.log('  ElevenLabs:', keys.ELEVENLABS_API_KEY ? '✅' : '❌');
             console.log('  Judge0:', keys.JUDGE0_BASE_URL ? `✅ (${keys.JUDGE0_BASE_URL})` : '❌ (JUDGE0_HOST not set)');
         },
@@ -1232,20 +1278,42 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
                 
-                const totalUsers = await userService.count();
-                const totalInterviews = await interviewService.count();
-                const totalBotInterviews = await botInterviewService.count();
-                const completedInterviews = await interviewService.countCompleted();
-                const avgScore = await interviewService.getAverageScore();
-                
-                sendJson(res, 200, { 
-                    totalUsers, 
-                    totalInterviews: totalInterviews + totalBotInterviews,
-                    mainInterviews: totalInterviews,
-                    botInterviews: totalBotInterviews,
-                    completedInterviews, 
-                    averageScore: Math.round(avgScore * 10) / 10 
-                });
+                try {
+                    const totalUsers = await userService.count();
+                    const totalInterviews = await interviewService.count();
+                    const totalBotInterviews = await botInterviewService.count();
+                    
+                    // These queries require composite indexes - handle gracefully if not yet deployed
+                    let completedInterviews = 0;
+                    let avgScore = 0;
+                    
+                    try {
+                        completedInterviews = await interviewService.countCompleted();
+                    } catch (indexError: unknown) {
+                        console.warn('⚠️ Composite index not ready for countCompleted:', indexError instanceof Error ? indexError.message : String(indexError));
+                    }
+                    
+                    try {
+                        avgScore = await interviewService.getAverageScore();
+                    } catch (indexError: unknown) {
+                        console.warn('⚠️ Composite index not ready for getAverageScore:', indexError instanceof Error ? indexError.message : String(indexError));
+                    }
+                    
+                    sendJson(res, 200, { 
+                        totalUsers, 
+                        totalInterviews: totalInterviews + totalBotInterviews,
+                        mainInterviews: totalInterviews,
+                        botInterviews: totalBotInterviews,
+                        completedInterviews, 
+                        averageScore: Math.round(avgScore * 10) / 10 
+                    });
+                } catch (error: unknown) {
+                    console.error('❌ Error loading admin stats:', error);
+                    sendJson(res, 500, { 
+                        error: 'Failed to load statistics',
+                        details: error instanceof Error ? error.message : String(error)
+                    });
+                }
             }));
 
             // ==================== ROLES ====================
@@ -1691,8 +1759,8 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                     const analysis = await gapAnalysisService.getById(gapId);
                     const skillGaps: SkillGap[] = analysis?.skillGaps || [];
 
-                    // Generate roadmap
-                    const roadmap = await generateLearningRoadmap(db, session.userId, targetRole, gapId, skillGaps);
+                    // Generate roadmap (db parameter is deprecated, pass null)
+                    const roadmap = await generateLearningRoadmap(null, session.userId, targetRole, gapId, skillGaps);
 
                     sendJson(res, 200, { success: true, roadmap });
                 } catch (err: any) {
@@ -1742,9 +1810,9 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                         return sendJson(res, 400, { error: 'targetRole and futureReadyScore required' });
                     }
 
-                    if (!keys.GEMINI_API_KEY) {
-                        console.warn('⚠️ Gemini API key not configured, skipping narrative');
-                        return sendJson(res, 503, { error: 'Gemini API not configured' });
+                    if (!keys.GROQ_API_KEY) {
+                        console.warn('⚠️ Groq API key not configured, skipping narrative');
+                        return sendJson(res, 503, { error: 'Groq API not configured' });
                     }
 
                     // Check cache
@@ -1756,7 +1824,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                         return sendJson(res, 200, { success: true, narrative: JSON.parse(cached.output_data), cached: true });
                     }
 
-                    // Generate narrative with Gemini
+                    // Generate narrative with Groq (faster than Gemini)
                     const criticalGaps = (skillGaps || []).filter((g: any) => g.priority === 'CRITICAL').slice(0, 3);
                     const strengths = (skillGaps || []).filter((g: any) => g.priority === 'STRENGTH').slice(0, 3);
 
@@ -1790,10 +1858,10 @@ Generate a JSON response with this exact structure:
 
 Be specific. Reference the actual scores and trends. Never give generic advice.`;
 
-                    const result = await callGemini(keys.GEMINI_API_KEY, prompt, { temperature: 0.7, maxTokens: 1024 });
+                    const result = await callGroqNarrative(keys.GROQ_API_KEY, prompt, { temperature: 0.7, maxTokens: 1024 });
                     
                     if (!result.success || !result.text) {
-                        console.error('❌ Gemini API failed:', result.error);
+                        console.error('❌ Groq API failed:', result.error);
                         return sendJson(res, 500, { error: result.error || 'Failed to generate narrative' });
                     }
 
@@ -1805,7 +1873,7 @@ Be specific. Reference the actual scores and trends. Never give generic advice.`
                         narrative = JSON.parse(clean);
                         console.log('✅ Narrative generated successfully');
                     } catch (parseErr) {
-                        console.error('❌ Failed to parse Gemini response:', result.text?.substring(0, 200));
+                        console.error('❌ Failed to parse Groq response:', result.text?.substring(0, 200));
                         return sendJson(res, 500, { error: 'Failed to parse AI response' });
                     }
 
@@ -1843,8 +1911,8 @@ Be specific. Reference the actual scores and trends. Never give generic advice.`
                 try {
                     const { skill, userScore, marketScore, targetRole } = await parseBody(req);
 
-                    if (!keys.GEMINI_API_KEY) {
-                        return sendJson(res, 503, { error: 'Gemini API not configured' });
+                    if (!keys.GROQ_API_KEY) {
+                        return sendJson(res, 503, { error: 'Groq API not configured' });
                     }
 
                     // Check cache
@@ -1868,7 +1936,7 @@ Provide exactly 3 sentences in this JSON format:
   "project_idea": "One concrete GitHub project that would demonstrate this skill"
 }`;
 
-                    const result = await callGemini(keys.GEMINI_API_KEY, prompt, { temperature: 0.6, maxTokens: 512 });
+                    const result = await callGroqNarrative(keys.GROQ_API_KEY, prompt, { temperature: 0.6, maxTokens: 512 });
                     
                     if (!result.success || !result.text) {
                         return sendJson(res, 500, { error: 'Failed to generate explanation' });

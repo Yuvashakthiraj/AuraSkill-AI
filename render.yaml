@@ -1,0 +1,40 @@
+# Render.com Deployment Configuration
+# Deploy your backend API to Render's free tier
+
+services:
+  # Backend API Server
+  - type: web
+    name: auraskill-api
+    env: node
+    region: singapore  # Choose: oregon, frankfurt, singapore
+    plan: starter  # Free tier
+    buildCommand: npm install && npm run build:server
+    startCommand: npm run start:server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: FRONTEND_URL
+        sync: false  # Set manually in Render dashboard
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_API_KEY_2
+        sync: false
+      - key: GROQ_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: JUDGE0_HOST
+        sync: false
+    healthCheckPath: /health

@@ -3,6 +3,8 @@
  * Used for backend operations and token verification
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';

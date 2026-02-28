@@ -188,7 +188,7 @@ export const sendSelectionEmail = functions.https.onCall(async (data, context) =
 
   try {
     // Configure email transport (use your SMTP settings)
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail', // or your email service
       auth: {
         user: functions.config().email?.user || process.env.EMAIL_USER,

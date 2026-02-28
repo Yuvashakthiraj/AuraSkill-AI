@@ -3,6 +3,8 @@
  * Generates month-by-month learning plans with course recommendations
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import crypto from 'crypto';
 import type { SkillGap } from './matchingEngine';
 import { sortByDependencies } from './matchingEngine';

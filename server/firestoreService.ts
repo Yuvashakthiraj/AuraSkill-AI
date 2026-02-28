@@ -3,6 +3,8 @@
  * Provides SQLite-compatible API using Firestore collections
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { getFirebaseAdmin, ensureAdminUser } from './firebaseAdmin';
 import admin from 'firebase-admin';
 import crypto from 'crypto';

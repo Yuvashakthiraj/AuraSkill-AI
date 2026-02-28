@@ -28,14 +28,14 @@ const Sidebar = () => {
 
     const navItems = [
         { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', show: true },
-        { label: 'Smart Resume', icon: FileText, path: '/resume', show: true },
-        { label: 'Gap Analysis', icon: BarChart3, path: '/gap-analysis', show: true },
-        { label: 'Career Roadmap', icon: Route, path: '/career-planner', show: true },
         { label: 'Skill Trends', icon: TrendingUp, path: '/skill-trends', show: true },
-        { label: 'Live Jobs', icon: Globe, path: '/live-jobs', show: true },
+        { label: 'Smart Resume', icon: FileText, path: '/resume', show: true },
         { label: 'Profile Analyzer', icon: Search, path: '/profile-analyzer', show: true },
+        { label: 'Career Roadmap', icon: Route, path: '/career-planner', show: true },
+        { label: 'Live Jobs', icon: Globe, path: '/live-jobs', show: true },
         { label: 'Learning Path', icon: BookOpen, path: '/learning-pathway', show: true },
         { label: 'Job Board', icon: Briefcase, path: '/jobs', show: true },
+        { label: 'Gap Analysis', icon: BarChart3, path: '/gap-analysis', show: true },
         { label: 'History', icon: History, path: '/history', show: true },
     ];
 
