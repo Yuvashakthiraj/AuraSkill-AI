@@ -830,15 +830,6 @@ export function auraSkillApiPlugin(): Plugin {
                 }
                 next();
             });
-                                body.startTime || new Date().toISOString(), body.endTime || null);
-                        sendJson(res, 201, { success: true, id });
-                    } catch (err: any) {
-                        sendJson(res, 500, { error: err.message });
-                    }
-                    return;
-                }
-                next();
-            });
 
             // ==================== DB CRUD: RESUMES ====================
             server.middlewares.use('/api/resumes', async (req: any, res: any, next: any) => {
@@ -1572,19 +1563,6 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                         if (!analysis) {
                             return sendJson(res, 404, { error: 'No gap analysis found' });
                         }
-
-                        sendJson(res, 200, { success: true, analysis });
-                                resume_match: row.resume_match_score,
-                                github_match: row.github_match_score,
-                                assessment_performance: row.assessment_score,
-                                market_alignment: row.market_alignment_score,
-                            },
-                            skill_gaps: JSON.parse(row.skill_gaps || '[]'),
-                            profile_conflicts: JSON.parse(row.profile_conflicts || '[]'),
-                            job_ready_date: row.job_ready_date,
-                            job_ready_months: row.job_ready_months,
-                            created_at: row.created_at,
-                        };
 
                         sendJson(res, 200, { success: true, analysis });
                     } catch (err: any) {
