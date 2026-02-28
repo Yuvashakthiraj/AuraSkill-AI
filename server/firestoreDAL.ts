@@ -24,6 +24,30 @@ export function generateId(): string {
 }
 
 /**
+ * Normalize field names - convert camelCase to snake_case for consistency
+ * This ensures data from frontend (camelCase) matches Firestore queries (snake_case)
+ */
+export function normalizeFields(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  
+  const fieldMap: Record<string, string> = {
+    'userId': 'user_id',
+    'createdAt': 'created_at',
+    'updatedAt': 'updated_at',
+    'completedAt': 'completed_at',
+    'gapAnalysisId': 'gap_analysis_id',
+    'cacheKey': 'cache_key',
+  };
+  
+  const normalized: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    const newKey = fieldMap[key] || key;
+    normalized[newKey] = value;
+  }
+  return normalized;
+}
+
+/**
  * Password hashing (compatible with SQLite version)
  */
 export function hashPassword(password: string): string {
@@ -86,12 +110,13 @@ export const interviewService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('interviews').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('interviews').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   },
 
   async delete(id: string) {
@@ -141,12 +166,13 @@ export const practiceAptitudeService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('practiceAptitude').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('practiceAptitude').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   },
 
   async count(userId: string) {
@@ -174,12 +200,13 @@ export const practiceInterviewService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('practiceInterviews').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('practiceInterviews').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -198,12 +225,13 @@ export const botInterviewService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('botInterviews').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('botInterviews').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -215,19 +243,20 @@ export const practiceCodingService = {
     const snapshot = await getFirestore()
       .collection('practiceCoding')
       .where('user_id', '==', userId)
-      .orderBy('created_at', 'desc')
+      .orderBy('updated_at', 'desc')
       .limit(limit)
       .get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
   async createOrUpdate(data: any) {
-    const docRef = getFirestore().collection('practiceCoding').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('practiceCoding').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    return data.id;
+    return normalized.id;
   },
 
   async count(userId: string) {
@@ -254,12 +283,13 @@ export const resumeService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('resumes').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('resumes').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   },
 
   async count(userId: string) {
@@ -294,18 +324,20 @@ export const round1AptitudeService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('round1Aptitude').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('round1Aptitude').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   },
 
   async update(id: string, updates: any) {
+    const normalized = normalizeFields(updates);
     const docRef = getFirestore().collection('round1Aptitude').doc(id);
     await docRef.update({
-      ...updates,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     });
   }
@@ -325,12 +357,13 @@ export const careerPlanService = {
   },
 
   async create(data: any) {
-    const docRef = getFirestore().collection('careerPlans').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('careerPlans').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -348,12 +381,13 @@ export const resumeBuildService = {
   },
 
   async createOrUpdate(data: any) {
-    const docRef = getFirestore().collection('resumeBuilds').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('resumeBuilds').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -367,12 +401,13 @@ export const roleService = {
   },
 
   async createOrUpdate(data: any) {
-    const docRef = getFirestore().collection('roles').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('roles').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -396,12 +431,13 @@ export const gapAnalysisService = {
   },
 
   async createOrUpdate(data: any) {
-    const docRef = getFirestore().collection('gapAnalyses').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('gapAnalyses').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    return data.id;
+    return normalized.id;
   }
 };
 
@@ -420,12 +456,13 @@ export const learningRoadmapService = {
   },
 
   async createOrUpdate(data: any) {
-    const docRef = getFirestore().collection('learningRoadmaps').doc(data.id);
+    const normalized = normalizeFields(data);
+    const docRef = getFirestore().collection('learningRoadmaps').doc(normalized.id);
     await docRef.set({
-      ...data,
+      ...normalized,
       updated_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    return data.id;
+    return normalized.id;
   }
 };
 
