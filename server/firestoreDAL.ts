@@ -445,6 +445,16 @@ export const gapAnalysisService = {
  * Learning Roadmap Operations
  */
 export const learningRoadmapService = {
+  async getByUser(userId: string) {
+    const snapshot = await getFirestore()
+      .collection('learningRoadmaps')
+      .where('user_id', '==', userId)
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .get();
+    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+  },
+
   async getByGapAnalysis(gapAnalysisId: string) {
     const snapshot = await getFirestore()
       .collection('learningRoadmaps')
@@ -470,9 +480,12 @@ export const learningRoadmapService = {
  * AI Narrative Cache Operations
  */
 export const narrativeCacheService = {
-  async get(cacheKey: string) {
+  async get(cacheKey: string, _type?: string) {
+    // _type parameter is optional, used for logging/organization but the cacheKey already includes type
     const doc = await getFirestore().collection('aiNarrativeCache').doc(cacheKey).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    if (!doc.exists) return null;
+    const data = doc.data();
+    return { id: doc.id, ...data, output_data: data?.narrative || data?.output_data };
   },
 
   async set(cacheKey: string, narrative: string, metadata: any) {
@@ -480,6 +493,7 @@ export const narrativeCacheService = {
     await docRef.set({
       cache_key: cacheKey,
       narrative,
+      output_data: narrative,
       metadata: JSON.stringify(metadata),
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });

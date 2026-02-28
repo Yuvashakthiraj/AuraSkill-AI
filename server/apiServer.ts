@@ -223,7 +223,7 @@ async function callGemini(apiKey: string, prompt: string, options: { temperature
         if (!rate.ok) return { success: false, error: rate.error };
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1660,7 +1660,8 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                     // Get gap analysis
                     let gapId = gapAnalysisId;
                     if (!gapId) {
-                        const analysis = await gapAnalysisService.getByUser(session.userId, targetRole);
+                        // Get latest analysis for user (regardless of targetRole)
+                        const analysis = await gapAnalysisService.getByUser(session.userId);
                         gapId = analysis?.id;
                     }
 
