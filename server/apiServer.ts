@@ -148,19 +148,70 @@ function getQueryParams(req: IncomingMessage): URLSearchParams {
     return new URLSearchParams(qIndex >= 0 ? url.slice(qIndex + 1) : '');
 }
 
-// Simple JWT-like token (session token stored in memory for simplicity)
-const sessions: Map<string, { userId: string; email: string; isAdmin: boolean; name: string }> = new Map();
+// ==================== FIREBASE AUTH ====================
+// Cache for verified tokens to avoid repeated verification
+const tokenCache: Map<string, { userId: string; email: string; isAdmin: boolean; name: string; expiresAt: number }> = new Map();
 
-function createSession(userId: string, email: string, isAdmin: boolean, name: string): string {
-    const token = generateId() + '-' + generateId();
-    sessions.set(token, { userId, email, isAdmin, name });
-    return token;
-}
+// Admin emails list
+const ADMIN_EMAILS = ['admin@auraskills.com', 'admin@vidyamitra.com'];
 
-function getSession(req: IncomingMessage) {
+// Verify Firebase ID token and return session info
+async function getFirebaseSession(req: IncomingMessage): Promise<{ userId: string; email: string; isAdmin: boolean; name: string } | null> {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace('Bearer ', '');
-    return sessions.get(token) || null;
+    
+    if (!token) return null;
+    
+    // Check cache first
+    const cached = tokenCache.get(token);
+    if (cached && cached.expiresAt > Date.now()) {
+        return { userId: cached.userId, email: cached.email, isAdmin: cached.isAdmin, name: cached.name };
+    }
+    
+    try {
+        // Verify Firebase ID token
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        
+        // Try to get user data from Firestore for isAdmin status
+        let isAdmin = ADMIN_EMAILS.includes(decodedToken.email || '');
+        let name = decodedToken.name || decodedToken.email?.split('@')[0] || 'User';
+        
+        try {
+            const userData = await userService.getById(decodedToken.uid);
+            if (userData) {
+                isAdmin = userData.isAdmin || isAdmin;
+                name = userData.name || name;
+            }
+        } catch {
+            // Firestore lookup failed, use defaults
+        }
+        
+        const session = {
+            userId: decodedToken.uid,
+            email: decodedToken.email || '',
+            isAdmin,
+            name
+        };
+        
+        // Cache for 5 minutes
+        tokenCache.set(token, { 
+            ...session, 
+            expiresAt: Date.now() + 5 * 60 * 1000 
+        });
+        
+        return session;
+    } catch (error: any) {
+        // Token verification failed - expired or invalid
+        tokenCache.delete(token);
+        return null;
+    }
+}
+
+// Legacy function for backward compatibility (now uses Firebase)
+function getSession(req: IncomingMessage) {
+    // This is now a stub - use getFirebaseSession instead
+    // Returning null forces all endpoints to use async getFirebaseSession
+    return null;
 }
 
 // ==================== EXTERNAL API CALLS ====================
@@ -569,7 +620,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             server.middlewares.use('/api/auth/me', async (req: any, res: any, next: any) => {
                 if (req.method !== 'GET') return next();
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
                 sendJson(res, 200, { user: { id: session.userId, email: session.email, name: session.name, isAdmin: session.isAdmin } });
             });
@@ -578,7 +629,8 @@ export function auraSkillApiPlugin(): Plugin {
                 if (req.method !== 'POST') return next();
                 const authHeader = req.headers.authorization || '';
                 const token = authHeader.replace('Bearer ', '');
-                sessions.delete(token);
+                // Clear from cache (actual logout happens client-side via Firebase)
+                tokenCache.delete(token);
                 sendJson(res, 200, { success: true });
             });
 
@@ -640,7 +692,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: INTERVIEWS ====================
             server.middlewares.use('/api/interviews', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 const path = getUrlPath(req);
 
                 if (req.method === 'GET' && (path === '/' || path === '')) {
@@ -700,7 +752,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: PRACTICE APTITUDE ====================
             server.middlewares.use('/api/practice-aptitude', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -734,7 +786,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: PRACTICE INTERVIEWS ====================
             server.middlewares.use('/api/practice-interviews', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -770,7 +822,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: BOT INTERVIEWS ====================
             server.middlewares.use('/api/bot-interviews', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -802,7 +854,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: PRACTICE CODING ====================
             server.middlewares.use('/api/practice-coding', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -833,7 +885,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: RESUMES ====================
             server.middlewares.use('/api/resumes', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -866,7 +918,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== DB CRUD: ROUND 1 APTITUDE ====================
             server.middlewares.use('/api/round1-aptitude', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
@@ -929,7 +981,7 @@ export function auraSkillApiPlugin(): Plugin {
 
             // ==================== CAREER PLAN ====================
             server.middlewares.use('/api/career-plan', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'POST') {
@@ -1023,7 +1075,7 @@ Return ONLY valid JSON.`;
 
             // ==================== ROADMAP CHART (Groq + Mermaid) ====================
             server.middlewares.use('/api/roadmap-chart', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method !== 'POST') return next();
@@ -1103,7 +1155,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
 
             // ==================== RESUME BUILDER ====================
             server.middlewares.use('/api/resume-builder', async (req: any, res: any, next: any) => {
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'POST') {
@@ -1138,7 +1190,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
             // ==================== ADMIN: ALL USERS ====================
             server.middlewares.use('/api/admin/users', async (req: any, res: any, next: any) => {
                 if (req.method !== 'GET') return next();
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
                 const users = await userService.getAll();
                 sendJson(res, 200, { users });
@@ -1147,7 +1199,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
             // ==================== ADMIN: STATS ====================
             server.middlewares.use('/api/admin/stats', async (req: any, res: any, next: any) => {
                 if (req.method !== 'GET') return next();
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
                 const totalUsers = await userService.count();
                 const totalInterviews = await interviewService.count();
@@ -1163,7 +1215,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                     return sendJson(res, 200, { roles });
                 }
                 if (req.method === 'POST') {
-                    const session = getSession(req);
+                    const session = await getFirebaseSession(req);
                     if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
                     try {
                         const { roleId, isOpen } = await parseBody(req);
@@ -1466,7 +1518,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
             // POST /api/analysis/run - Run full gap analysis
             server.middlewares.use('/api/analysis/run', async (req: any, res: any, next: any) => {
                 if (req.method !== 'POST') return next();
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 try {
@@ -1552,7 +1604,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 
                 if (req.method === 'GET' && match) {
                     const userId = match[1];
-                    const session = getSession(req);
+                    const session = await getFirebaseSession(req);
                     if (!session || (session.userId !== userId && !session.isAdmin)) {
                         return sendJson(res, 403, { error: 'Access denied' });
                     }
@@ -1576,7 +1628,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
             // POST /api/roadmap/generate - Generate learning roadmap
             server.middlewares.use('/api/roadmap/generate', async (req: any, res: any, next: any) => {
                 if (req.method !== 'POST') return next();
-                const session = getSession(req);
+                const session = await getFirebaseSession(req);
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 try {
@@ -1615,7 +1667,7 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 
                 if (req.method === 'GET' && match) {
                     const userId = match[1];
-                    const session = getSession(req);
+                    const session = await getFirebaseSession(req);
                     if (!session || (session.userId !== userId && !session.isAdmin)) {
                         return sendJson(res, 403, { error: 'Access denied' });
                     }
@@ -1818,3 +1870,4 @@ Provide exactly 3 sentences in this JSON format:
         },
     };
 }
+

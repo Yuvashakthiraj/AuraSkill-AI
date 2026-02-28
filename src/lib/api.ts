@@ -1,25 +1,34 @@
 /**
- * VidyaMitra API Client
- * Replaces all Firebase SDK calls with REST API calls to our Vite server.
+ * AuraSkill AI API Client
+ * Uses Firebase Authentication tokens for secure API calls.
  * All API keys stay server-side.
  */
 
+import { auth } from './firebase';
+
 const API_BASE = '';
 
-// Token management
-let authToken: string | null = localStorage.getItem('vidyamitra_token');
-
-export function setAuthToken(token: string | null) {
-    authToken = token;
-    if (token) {
-        localStorage.setItem('vidyamitra_token', token);
-    } else {
-        localStorage.removeItem('vidyamitra_token');
+// Get fresh Firebase ID token
+async function getFirebaseToken(): Promise<string | null> {
+    const user = auth.currentUser;
+    if (!user) return null;
+    try {
+        // getIdToken(true) forces refresh if token is expired
+        return await user.getIdToken(true);
+    } catch (error) {
+        console.error('Failed to get Firebase token:', error);
+        return null;
     }
 }
 
+// Legacy token functions for backward compatibility
+export function setAuthToken(_token: string | null) {
+    // No-op: We now use Firebase tokens directly
+}
+
 export function getAuthToken(): string | null {
-    return authToken;
+    // Return null - use getFirebaseToken() instead
+    return null;
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
@@ -27,8 +36,11 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
         'Content-Type': 'application/json',
         ...(options.headers as Record<string, string> || {}),
     };
-    if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+    
+    // Get fresh Firebase token for authenticated requests
+    const token = await getFirebaseToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
 
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers });

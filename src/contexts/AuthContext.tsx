@@ -46,10 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             name: userData?.name || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
             isAdmin: userData?.isAdmin || ADMIN_EMAILS.includes(firebaseUser.email || ''),
           });
-
-          // Store token in localStorage for API calls
-          const idToken = await firebaseUser.getIdToken();
-          localStorage.setItem('vidyamitra_token', idToken);
+          // Token is now fetched fresh for each API call via api.ts
           
         } catch (error) {
           // If Firestore fails, still set user from Firebase Auth data
@@ -60,18 +57,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
             isAdmin: ADMIN_EMAILS.includes(firebaseUser.email || ''),
           });
-          
-          // Still store the token
-          try {
-            const idToken = await firebaseUser.getIdToken();
-            localStorage.setItem('vidyamitra_token', idToken);
-          } catch (tokenErr) {
-            console.error('Error getting ID token:', tokenErr);
-          }
         }
       } else {
         setUser(null);
-        localStorage.removeItem('vidyamitra_token');
       }
       setLoading(false);
     });
