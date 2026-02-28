@@ -3,10 +3,10 @@
  * Generates month-by-month learning plans with course recommendations
  */
 
-import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import type { SkillGap } from './matchingEngine';
 import { sortByDependencies } from './matchingEngine';
+import { learningRoadmapService } from './firestoreDAL';
 
 export interface CourseResource {
   name: string;
@@ -339,7 +339,7 @@ export function generateMermaidRoadmap(
 // ============================================================================
 
 export async function generateLearningRoadmap(
-  db: Database.Database,
+  _db: any, // Deprecated: kept for backward compatibility
   userId: string,
   targetRole: string,
   gapAnalysisId: string,
@@ -366,16 +366,19 @@ export async function generateLearningRoadmap(
       created_at: new Date().toISOString(),
     };
 
-    // Save to database
-    db.prepare(`
-      INSERT INTO learning_roadmaps 
-      (id, user_id, target_role, gap_analysis_id, mermaid_code, monthly_plan, 
-       total_months, total_hours, job_ready_date, roadmap_data)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, userId, targetRole, gapAnalysisId, roadmap.mermaid_code,
-      JSON.stringify(roadmap.monthly_plan), 0, 0, roadmap.job_ready_date, '{}'
-    );
+    // Save to Firestore
+    await learningRoadmapService.createOrUpdate({
+      id,
+      userId,
+      targetRole,
+      gapAnalysisId,
+      mermaidCode: roadmap.mermaid_code,
+      monthlyPlan: roadmap.monthly_plan,
+      totalMonths: 0,
+      totalHours: 0,
+      jobReadyDate: roadmap.job_ready_date,
+      roadmapData: {}
+    });
 
     return roadmap;
   }
@@ -392,18 +395,20 @@ export async function generateLearningRoadmap(
   // Generate Mermaid code
   const mermaid_code = generateMermaidRoadmap(monthly_plan, targetRole);
 
-  // Save to database
+  // Save to Firestore
   const id = crypto.randomUUID();
-  db.prepare(`
-    INSERT INTO learning_roadmaps 
-    (id, user_id, target_role, gap_analysis_id, mermaid_code, monthly_plan, 
-     total_months, total_hours, job_ready_date, roadmap_data)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, userId, targetRole, gapAnalysisId, mermaid_code,
-    JSON.stringify(monthly_plan), total_months, total_hours, job_ready_date,
-    JSON.stringify({ criticalGaps })
-  );
+  await learningRoadmapService.createOrUpdate({
+    id,
+    userId,
+    targetRole,
+    gapAnalysisId,
+    mermaidCode: mermaid_code,
+    monthlyPlan: monthly_plan,
+    totalMonths: total_months,
+    totalHours: total_hours,
+    jobReadyDate: job_ready_date,
+    roadmapData: { criticalGaps }
+  });
 
   return {
     id,

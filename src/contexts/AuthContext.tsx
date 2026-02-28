@@ -2,8 +2,9 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { User, LoginCredentials, AuthContextType } from '@/types/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { firebaseAuthService, firestoreService } from '@/lib/firebaseService';
+import { firebaseAuthService } from '@/lib/firebaseService';
 
 const ADMIN_EMAILS = ['admin@auraskills.com', 'admin@vidyamitra.com'];
 
@@ -19,8 +20,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Get user data from Firestore
-          const userData = await firestoreService.getDocument('users', firebaseUser.uid);
+          // Try to get user data from Firestore
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          let userData = userDocSnap.exists() ? userDocSnap.data() : null;
+          
+          // If user document doesn't exist, create it
+          if (!userData) {
+            const newUserData = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+              isAdmin: ADMIN_EMAILS.includes(firebaseUser.email || ''),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            };
+            await setDoc(userDocRef, newUserData);
+            userData = newUserData;
+          }
           
           setUser({
             id: firebaseUser.uid,
@@ -34,8 +52,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.setItem('vidyamitra_token', idToken);
           
         } catch (error) {
-          console.error('Error loading user data:', error);
-          setUser(null);
+          // If Firestore fails, still set user from Firebase Auth data
+          console.warn('Could not load Firestore user data, using Auth data:', error);
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            isAdmin: ADMIN_EMAILS.includes(firebaseUser.email || ''),
+          });
+          
+          // Still store the token
+          try {
+            const idToken = await firebaseUser.getIdToken();
+            localStorage.setItem('vidyamitra_token', idToken);
+          } catch (tokenErr) {
+            console.error('Error getting ID token:', tokenErr);
+          }
         }
       } else {
         setUser(null);
@@ -52,8 +84,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Sign in with Firebase
       const userCredential = await firebaseAuthService.signin(credentials.email, credentials.password);
       
-      // Get user data from Firestore
-      const userData = await firestoreService.getDocument('users', userCredential.user.uid);
+      // Try to get user data from Firestore
+      let userData = null;
+      try {
+        const userDocRef = doc(db, 'users', userCredential.user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        userData = userDocSnap.exists() ? userDocSnap.data() : null;
+      } catch (firestoreError) {
+        console.warn('Could not load user data from Firestore:', firestoreError);
+      }
       
       const appUser: User = {
         id: userCredential.user.uid,

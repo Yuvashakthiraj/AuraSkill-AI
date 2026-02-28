@@ -4,8 +4,14 @@
  * Generates gap analysis, future-ready score, and learning roadmap
  */
 
-import Database from 'better-sqlite3';
 import crypto from 'crypto';
+import {
+  resumeService,
+  practiceAptitudeService,
+  practiceCodingService,
+  userSkillProfileService,
+  gapAnalysisService
+} from './firestoreDAL';
 
 // ============================================================================
 // TYPES
@@ -173,16 +179,17 @@ export interface UserSkillProfile {
  * Fetch or build user's skill profile from all evidence sources
  */
 export async function getUserSkillProfile(
-  db: Database.Database,
+  _db: any, // Deprecated: kept for backward compatibility
   userId: string
 ): Promise<Map<string, UserSkillProfile>> {
   const profileMap = new Map<string, UserSkillProfile>();
 
   // 1. Get skills from resume
-  const resume = db.prepare('SELECT parsed_data FROM resumes WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(userId) as { parsed_data?: string } | undefined;
-  if (resume && resume.parsed_data) {
+  const resumes = await resumeService.getByUser(userId, 1);
+  const resume = resumes[0];
+  if (resume && resume.parsedData) {
     try {
-      const parsed = JSON.parse(resume.parsed_data);
+      const parsed = typeof resume.parsedData === 'string' ? JSON.parse(resume.parsedData) : resume.parsedData;
       const skills = parsed.skills || parsed.skills_extracted?.technical_skills || [];
       
       for (const skillItem of skills) {
@@ -207,29 +214,40 @@ export async function getUserSkillProfile(
   }
 
   // 2. Get skills from GitHub (via user_skill_profiles if previously analyzed)
-  const githubSkills = db.prepare('SELECT skill_name, github_score FROM user_skill_profiles WHERE user_id = ?').all(userId) as Array<{ skill_name: string; github_score: number }>;
-  for (const row of githubSkills) {
-    if (row.github_score > 0) {
-      if (!profileMap.has(row.skill_name)) {
-        profileMap.set(row.skill_name, {
-          skill: row.skill_name,
-          resume_score: 0,
-          github_score: row.github_score,
-          assessment_score: 0,
-          verified_score: 0,
-        });
-      } else {
-        profileMap.get(row.skill_name)!.github_score = row.github_score;
+  const userSkillProfile = await userSkillProfileService.getByUser(userId);
+  if (userSkillProfile && userSkillProfile.skills) {
+    const skills = typeof userSkillProfile.skills === 'string' 
+      ? JSON.parse(userSkillProfile.skills) 
+      : userSkillProfile.skills;
+    
+    for (const skillData of (Array.isArray(skills) ? skills : [])) {
+      const skillName = skillData.skill_name || skillData.skill;
+      const githubScore = skillData.github_score || 0;
+      if (githubScore > 0 && skillName) {
+        if (!profileMap.has(skillName)) {
+          profileMap.set(skillName, {
+            skill: skillName,
+            resume_score: 0,
+            github_score: githubScore,
+            assessment_score: 0,
+            verified_score: 0,
+          });
+        } else {
+          profileMap.get(skillName)!.github_score = githubScore;
+        }
       }
     }
   }
 
   // 3. Get skills from assessments
   // Practice aptitude scores
-  const aptitude = db.prepare('SELECT category_performance FROM practice_aptitude WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(userId) as { category_performance?: string } | undefined;
-  if (aptitude && aptitude.category_performance) {
+  const aptitudeResults = await practiceAptitudeService.getByUser(userId, 1);
+  const aptitude = aptitudeResults[0];
+  if (aptitude && aptitude.categoryPerformance) {
     try {
-      const perf = JSON.parse(aptitude.category_performance);
+      const perf = typeof aptitude.categoryPerformance === 'string' 
+        ? JSON.parse(aptitude.categoryPerformance) 
+        : aptitude.categoryPerformance;
       Object.entries(perf).forEach(([category, score]) => {
         const normalizedScore = typeof score === 'number' ? score : 50;
         const skill = category;
@@ -252,13 +270,14 @@ export async function getUserSkillProfile(
   }
 
   // Practice coding scores (use language proficiency as assessment score)
-  const coding = db.prepare('SELECT session_data FROM practice_coding WHERE user_id = ? ORDER BY created_at DESC LIMIT 5').all(userId) as Array<{ session_data?: string }>;
+  const codingResults = await practiceCodingService.getByUser(userId, 5);
   const languageScores = new Map<string, number[]>();
   
-  for (const session of coding) {
-    if (session.session_data) {
+  for (const session of codingResults) {
+    const sessionData = session.session_data || session.sessionData;
+    if (sessionData) {
       try {
-        const data = JSON.parse(session.session_data);
+        const data = typeof sessionData === 'string' ? JSON.parse(sessionData) : sessionData;
         if (data.language) {
           const score = data.testsPassed ? (data.testsPassed / (data.testsTotal || 1)) * 100 : 50;
           if (!languageScores.has(data.language)) {
@@ -554,13 +573,13 @@ export function sortByDependencies(skills: SkillGap[]): SkillGap[] {
 // ============================================================================
 
 export async function runGapAnalysis(
-  db: Database.Database,
+  _db: any, // Deprecated: kept for backward compatibility
   userId: string,
   targetRole: string,
   marketSkills: Array<{ skill: string; demand_score: number; trend: string; growth_rate: number; category: string }>
 ): Promise<GapAnalysisResult> {
   // 1. Get user skill profile
-  const userProfile = await getUserSkillProfile(db, userId);
+  const userProfile = await getUserSkillProfile(null, userId);
 
   // 2. Build comprehensive skill gap list
   const skillGaps: SkillGap[] = [];
@@ -614,28 +633,22 @@ export async function runGapAnalysis(
 
   // 6. Save to database
   const id = crypto.randomUUID();
-  db.prepare(`
-    INSERT INTO gap_analyses 
-    (id, user_id, target_role, future_ready_score, resume_match_score, github_match_score, 
-     assessment_score, market_alignment_score, grade, skill_gaps, profile_conflicts, 
-     job_ready_date, job_ready_months, analysis_data)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  await gapAnalysisService.createOrUpdate({
     id,
     userId,
     targetRole,
-    future_ready_score.overall,
-    future_ready_score.resume_match,
-    future_ready_score.github_match,
-    future_ready_score.assessment_performance,
-    future_ready_score.market_alignment,
-    future_ready_score.grade,
-    JSON.stringify(skillGaps),
-    JSON.stringify(profile_conflicts),
-    job_ready_date,
-    job_ready_months,
-    JSON.stringify({ userProfile: Array.from(userProfile.entries()) })
-  );
+    futureReadyScore: future_ready_score.overall,
+    resumeMatchScore: future_ready_score.resume_match,
+    githubMatchScore: future_ready_score.github_match,
+    assessmentScore: future_ready_score.assessment_performance,
+    marketAlignmentScore: future_ready_score.market_alignment,
+    grade: future_ready_score.grade,
+    skillGaps,
+    profileConflicts: profile_conflicts,
+    jobReadyDate: job_ready_date,
+    jobReadyMonths: job_ready_months,
+    analysisData: { userProfile: Array.from(userProfile.entries()) }
+  });
 
   return {
     id,
