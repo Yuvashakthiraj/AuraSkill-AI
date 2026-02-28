@@ -285,6 +285,11 @@ export async function getBotInterviewHistory(userId: string) {
   return response?.results || [];
 }
 
+export async function getAllBotInterviews() {
+  const response = await botInterviewsApi.getAll(true);
+  return response?.results || [];
+}
+
 // ==================== PRACTICE CODING FUNCTIONS ====================
 export async function savePracticeCodingResult(session: any) {
   return await practiceCodingApi.save(session);

@@ -294,7 +294,7 @@ const GapAnalysis = () => {
 
       // Step 2: Generate roadmap
       setGenerating(true);
-      toast.loading('📚 Generating personalized learning roadmap...');
+      const roadmapToast = toast.loading('📚 Generating personalized learning roadmap...');
       
       const roadmapRes = await fetch('/api/roadmap/generate', {
         method: 'POST',
@@ -308,14 +308,16 @@ const GapAnalysis = () => {
         }),
       });
 
+      toast.dismiss(roadmapToast);
       if (roadmapRes.ok) {
         const roadmapData = await roadmapRes.json();
         setRoadmap(roadmapData.roadmap);
         toast.success(`🎯 ${roadmapData.roadmap.total_months}-month roadmap ready with ${roadmapData.roadmap.total_hours} hours of learning!`);
+      } else {
+        toast.error('Failed to generate roadmap');
       }
 
-      // Step 3: Fetch AI narrative
-      toast.loading('🤖 Generating AI career insights...');
+      // Step 3: Fetch AI narrative (no toast - happens in background)
       fetchNarrative(data.analysis);
     } catch (err) {
       toast.dismiss(loadingToast);

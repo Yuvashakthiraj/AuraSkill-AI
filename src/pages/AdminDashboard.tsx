@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useInterview } from "@/contexts/InterviewContext";
 import { useNavigate } from "react-router-dom";
 import { InterviewSession, RoundOneAptitudeResult } from "@/types";
-import { getAllInterviews, getRound1AptitudeResults, updateRound1AptitudeResult } from "@/lib/firebaseService";
+import { getAllInterviews, getRound1AptitudeResults, updateRound1AptitudeResult, getAllBotInterviews } from "@/lib/firebaseService";
 import { adminApi } from "@/lib/api";
 import { BulkResumeUpload } from "@/components/BulkResumeUpload";
 import { ResumeUpload } from "@/components/ResumeUpload";
@@ -109,22 +109,41 @@ const AdminDashboard = () => {
     return () => unsubscribe();
   }, []);
 
+  // Bot interviews state
+  const [botInterviews, setBotInterviews] = useState<any[]>([]);
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   useEffect(() => {
+    // Skip if already loaded (prevents reload on navigation)
+    if (dataLoaded) return;
+
     const loadInterviews = async () => {
       try {
         console.log('🔄 AdminDashboard: Loading interviews...');
         console.log('User is admin:', isAdmin);
 
-        // Admin sees all interviews from all users via Firebase
-        const allInterviews = await getAllInterviews();
+        // Load all data in parallel
+        const [allInterviews, allBotInterviews, aptitudeResults, stats] = await Promise.all([
+          getAllInterviews(),
+          getAllBotInterviews(),
+          getRound1AptitudeResults(),
+          adminApi.getStats().catch(() => null)
+        ]);
+
         const interviewsArray = Array.isArray(allInterviews) ? allInterviews : [];
-        console.log(`✅ Loaded ${interviewsArray.length} interviews from Firestore`);
+        const botInterviewsArray = Array.isArray(allBotInterviews) ? allBotInterviews : [];
+        console.log(`✅ Loaded ${interviewsArray.length} interviews + ${botInterviewsArray.length} bot interviews from Firestore`);
 
         setInterviews(interviewsArray);
         setFilteredInterviews(interviewsArray);
+        setBotInterviews(botInterviewsArray);
+        
+        if (stats) {
+          setAdminStats(stats);
+        }
 
         // Load Round 1 aptitude results
-        const aptitudeResults = await getRound1AptitudeResults();
         const aptitudeArray = Array.isArray(aptitudeResults) ? aptitudeResults : [];
         console.log(`✅ Loaded ${aptitudeArray.length} Round 1 aptitude results`);
         setRound1Results(aptitudeArray);
@@ -132,11 +151,12 @@ const AdminDashboard = () => {
 
         // Count total resumes saved
         try {
-          // TODO: Could add a dedicated admin API endpoint for resume count
           setTotalResumes(0);
         } catch (err) {
           console.error('Error counting resumes:', err);
         }
+        
+        setDataLoaded(true);
       } catch (error: any) {
         console.error('❌ Error loading interviews:', error);
         console.error('Error details:', {
@@ -149,12 +169,8 @@ const AdminDashboard = () => {
     };
 
     loadInterviews();
-
-    // Refresh every 10 seconds
-    const intervalId = setInterval(loadInterviews, 10000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+    // Remove the 10-second auto-refresh - data stays loaded on navigation
+  }, [isAdmin, dataLoaded]);
 
   useEffect(() => {
     let results = interviews;
@@ -190,15 +206,21 @@ const AdminDashboard = () => {
     setFilteredRound1Results(results);
   }, [round1SearchQuery, round1Results]);
 
-  const totalInterviews = interviews.length;
-  const completedInterviews = interviews.filter(i => i.completed).length;
-  const averageScore = completedInterviews > 0
-    ? interviews
-      .filter(i => i.completed && i.score)
-      .reduce((sum, i) => sum + (i.score || 0), 0) / completedInterviews
-    : 0;
+  // Use admin stats if available, otherwise calculate from local data
+  const totalInterviews = adminStats?.totalInterviews ?? (interviews.length + botInterviews.length);
+  const completedInterviews = adminStats?.completedInterviews ?? interviews.filter(i => i.completed).length;
+  const averageScore = adminStats?.averageScore ?? (
+    completedInterviews > 0
+      ? interviews
+        .filter(i => i.completed && i.score)
+        .reduce((sum, i) => sum + (i.score || 0), 0) / completedInterviews
+      : 0
+  );
 
-  const uniqueRoles = Array.from(new Set(interviews.map(i => i.roleName)));
+  const uniqueRoles = Array.from(new Set([
+    ...interviews.map(i => i.roleName),
+    ...botInterviews.map(i => i.role)
+  ].filter(Boolean)));
 
   // AI Detection Statistics
   const interviewsWithAI = interviews.filter(i =>

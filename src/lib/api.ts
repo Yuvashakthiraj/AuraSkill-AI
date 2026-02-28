@@ -146,6 +146,7 @@ export const practiceInterviewsApi = {
 // ==================== BOT INTERVIEWS ====================
 export const botInterviewsApi = {
     getHistory: () => apiFetch('/api/bot-interviews'),
+    getAll: (allAdmin = false) => apiFetch(`/api/bot-interviews${allAdmin ? '?all=true' : ''}`),
     save: (result: any) =>
         apiFetch('/api/bot-interviews', { method: 'POST', body: JSON.stringify(result) }),
 };

@@ -86,7 +86,7 @@ async function enforceRateLimit(): Promise<boolean> {
 function getModel(): GenerativeModel | null {
   if (!genAI) return null;
   return genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-lite",
+    model: "gemini-1.5-flash",
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 600,

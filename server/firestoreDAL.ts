@@ -214,6 +214,14 @@ export const practiceInterviewService = {
  * Bot Interview Operations
  */
 export const botInterviewService = {
+  async getAll() {
+    const snapshot = await getFirestore()
+      .collection('botInterviews')
+      .orderBy('created_at', 'desc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
   async getByUser(userId: string, limit = 50) {
     const snapshot = await getFirestore()
       .collection('botInterviews')
@@ -222,6 +230,11 @@ export const botInterviewService = {
       .limit(limit)
       .get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  async count() {
+    const snapshot = await getFirestore().collection('botInterviews').count().get();
+    return snapshot.data().count;
   },
 
   async create(data: any) {

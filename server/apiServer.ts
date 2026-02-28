@@ -848,6 +848,14 @@ export function auraSkillApiPlugin(): Plugin {
                 if (!session) return sendJson(res, 401, { error: 'Not authenticated' });
 
                 if (req.method === 'GET') {
+                    const params = getQueryParams(req);
+                    const allParam = params.get('all');
+                    
+                    // Admin can get all bot interviews
+                    if (allParam === 'true' && session.isAdmin) {
+                        const results = await botInterviewService.getAll();
+                        return sendJson(res, 200, { results });
+                    }
                     const results = await botInterviewService.getByUser(session.userId, 50);
                     return sendJson(res, 200, { results });
                 }
@@ -1223,11 +1231,21 @@ Generate the Mermaid code now for the ${targetRole} roadmap:`;
                 if (req.method !== 'GET') return next();
                 const session = await getFirebaseSession(req);
                 if (!session || !session.isAdmin) return sendJson(res, 403, { error: 'Admin access required' });
+                
                 const totalUsers = await userService.count();
                 const totalInterviews = await interviewService.count();
+                const totalBotInterviews = await botInterviewService.count();
                 const completedInterviews = await interviewService.countCompleted();
                 const avgScore = await interviewService.getAverageScore();
-                sendJson(res, 200, { totalUsers, totalInterviews, completedInterviews, averageScore: Math.round(avgScore * 10) / 10 });
+                
+                sendJson(res, 200, { 
+                    totalUsers, 
+                    totalInterviews: totalInterviews + totalBotInterviews,
+                    mainInterviews: totalInterviews,
+                    botInterviews: totalBotInterviews,
+                    completedInterviews, 
+                    averageScore: Math.round(avgScore * 10) / 10 
+                });
             }));
 
             // ==================== ROLES ====================
